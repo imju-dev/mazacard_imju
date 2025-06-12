@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IMJU - Búsqueda</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: white;
+      color: #691c32;
+      font-family: Arial, sans-serif;
+    }
+    .container-box {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 2rem;
+      background-color: #f8f9fa;
+      border: 2px solid #691c32;
+      border-radius: 1rem;
+    }
+    .btn-custom {
+      background-color: #691c32;
+      color: white;
+      border: none;
+    }
+    .btn-custom:hover {
+      background-color: #500f23;
+    }
+    .logo-imju {
+      display: block;
+      margin: 0 auto 1.5rem auto;
+      max-width: 100%;
+      height: auto;
+    }
+    .clickable-row {
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .clickable-row:hover {
+      background-color: #f0f0f0;
+    }
+    .search-container,
+    .buttons-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .search-input-container {
+      flex: 1 1 300px;
+      min-width: 250px;
+    }
+    .table-responsive {
+      max-height: 600px;
+      overflow-y: auto;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      background-color: #691c32;
+      color: white;
+      z-index: 10;
+    }
+    .curp-cell {
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 576px) {
+      .search-container,
+      .buttons-container {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .btn-custom,
+      .btn-danger {
+        width: 100% !important;
+      }
+
+      .search-input-container {
+        width: 100% !important;
+        margin-right: 0 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="container-box text-center">
+  <img src="/img/IMJU Logo_2.png" alt="Logo IMJU" class="logo-imju">
+
+  <% if (usuario) { %>
+    <div class="text-end mb-3">
+        <small class="text-muted">Bienvenido, <%= usuario.username %> | 
+        <a href="/logout" class="text-danger">Cerrar sesión</a></small>
+    </div>
+  <% } %>
+
+  <form id="formBusqueda" action="/buscar" method="GET">
+    <div class="search-container">
+      <div class="search-input-container">
+        <input type="text" name="busqueda" id="nombreBusqueda" class="form-control"
+               placeholder="Buscar por nombre, CURP o folio..." value="<%= busqueda || '' %>">
+      </div>
+    </div>
+
+    <div class="buttons-container">
+      <a href="/consulta" class="btn btn-custom" style="min-width: 180px;">Agregar nuevo</a>
+
+      <button type="button" class="btn btn-custom" data-bs-toggle="modal" data-bs-target="#exportModal">
+        Exportar tabla a Excel
+      </button>
+
+      <% if (usuario.rol === 'admin') { %>
+        <a href="/panelAdmin" class="btn btn-danger" style="min-width: 150px;">Panel Admin</a>
+      <% } %>
+    </div>
+  </form>
+
+  <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exportModalLabel">Exportar registros</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <ul class="nav nav-tabs" id="exportTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="single-date-tab" data-bs-toggle="tab" data-bs-target="#single-date" type="button" role="tab" aria-controls="single-date" aria-selected="true">Por fecha</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="range-date-tab" data-bs-toggle="tab" data-bs-target="#range-date" type="button" role="tab" aria-controls="range-date" aria-selected="false">Por rango</button>
+            </li>
+          </ul>
+          <div class="tab-content p-3" id="exportTabsContent">
+            <div class="tab-pane fade show active" id="single-date" role="tabpanel" aria-labelledby="single-date-tab">
+              <form id="exportBySingleDate">
+                <div class="mb-3">
+                  <label for="exportDate" class="form-label">Seleccione la fecha:</label>
+                  <input type="date" class="form-control" id="exportDate" name="exportDate" required>
+                </div>
+                <div class="form-text">
+                  Se exportarán todos los registros con fecha de expedición en el día seleccionado.
+                </div>
+              </form>
+            </div>
+            <div class="tab-pane fade" id="range-date" role="tabpanel" aria-labelledby="range-date-tab">
+              <form id="exportByDateRange">
+                <div class="mb-3">
+                  <label for="startDate" class="form-label">Fecha inicial:</label>
+                  <input type="date" class="form-control" id="startDate" name="startDate" required>
+                </div>
+                <div class="mb-3">
+                  <label for="endDate" class="form-label">Fecha final:</label>
+                  <input type="date" class="form-control" id="endDate" name="endDate" required>
+                </div>
+                <div class="form-text">
+                  Se exportarán todos los registros con fecha de expedición dentro del rango seleccionado.
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-success" id="confirmExport">Exportar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>CURP</th>
+          <th>Folio</th>
+          <th>Teléfono</th>
+          <th>Fecha Alta</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tablaUsuarios">
+        <% if (registros && registros.length > 0) { %>
+          <% registros.forEach(persona => { %>
+          <tr>
+            <td>
+              <%= persona.nombre %>
+              <% if (persona.apellido_paterno) { %> <%= persona.apellido_paterno %> <% } %>
+              <% if (persona.apellido_materno) { %> <%= persona.apellido_materno %> <% } %>
+            </td>
+            <td class="curp-cell"><%= persona.curp %></td>
+            <td><%= persona.folio %></td>
+            <td><%= persona.telefono %></td>
+            <td>
+              <% if (persona.fecha_expedicion) { %>
+                <%= new Date(persona.fecha_expedicion).toLocaleDateString('es-MX') %>
+              <% } %>
+            </td>
+            <td>
+              <a href="/consulta?id=<%= persona.id %>" class="btn btn-sm btn-outline-primary">Ver</a>
+              <% if (usuario.rol === 'admin' || usuario.rol === 'editor') { %>
+                <form action="/eliminar/<%= persona.id %>" method="POST" class="d-inline" onsubmit="event.stopPropagation(); return confirm('¿Estás seguro de querer eliminar este registro?')">
+                  <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+          <% }) %>
+        <% } else { %>
+          <tr>
+            <td colspan="6" class="text-center py-4">No se encontraron registros</td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+
+  <% if (totalPaginas > 1) { %>
+    <nav aria-label="Page navigation">
+      <ul class="pagination justify-content-center">
+        <% if (paginaActual > 1) { %>
+          <li class="page-item">
+            <a class="page-link" href="/buscar?pagina=<%= paginaActual-1 %><%= busqueda ? '&busqueda=' + busqueda : '' %>">Anterior</a>
+          </li>
+        <% } %>
+        <% for (let i = 1; i <= totalPaginas; i++) { %>
+          <li class="page-item <%= i === paginaActual ? 'active' : '' %>">
+            <a class="page-link" href="/buscar?pagina=<%= i %><%= busqueda ? '&busqueda=' + busqueda : '' %>"><%= i %></a>
+          </li>
+        <% } %>
+        <% if (paginaActual < totalPaginas) { %>
+          <li class="page-item">
+            <a class="page-link" href="/buscar?pagina=<%= paginaActual+1 %><%= busqueda ? '&busqueda=' + busqueda : '' %>">Siguiente</a>
+          </li>
+        <% } %>
+      </ul>
+    </nav>
+  <% } %>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date();
+    const formattedDate = today.toISOString().substr(0, 10);
+    document.getElementById('exportDate').value = formattedDate;
+    document.getElementById('startDate').value = formattedDate;
+    document.getElementById('endDate').value = formattedDate;
+  });
+
+  function mostrarAlerta(message, type = 'danger') {
+    const alertaDiv = document.createElement('div');
+    alertaDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertaDiv.role = 'alert';
+    alertaDiv.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+    
+    const container = document.querySelector('.container-box');
+    container.prepend(alertaDiv);
+
+    setTimeout(() => {
+      const bsAlerta = new bootstrap.Alert(alertaDiv);
+      bsAlerta.close();
+    }, 5000);
+  }
+
+  document.getElementById('confirmExport').addEventListener('click', async function() {
+    const activeTab = document.querySelector('.nav-link.active').id;
+  
+    if (activeTab === 'single-date-tab') {
+      await exportBySingleDate();
+    } else if (activeTab === 'range-date-tab') {
+      await exportByDateRange();
+    }
+  });
+
+  async function exportBySingleDate() {
+    const fecha = document.getElementById('exportDate').value;
+    if (!fecha) {
+      mostrarAlerta('Por favor seleccione una fecha');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/exportar-excel-fecha?fecha=${fecha}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `registros_${fecha}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        const errorData = await response.json();
+        mostrarAlerta(errorData.message);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      mostrarAlerta('Error al intentar exportar los datos');
+    } finally {
+      const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
+      modal.hide();
+    }
+  }
+
+  async function exportByDateRange() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+  
+    if (!startDate || !endDate) {
+      mostrarAlerta('Por favor seleccione ambas fechas');
+      return;
+    }
+  
+    if (startDate > endDate) {
+      mostrarAlerta('La fecha inicial no puede ser mayor que la fecha final');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/exportar-excel-rango-fechas?startDate=${startDate}&endDate=${endDate}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `registros_${startDate}_a_${endDate}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        const errorData = await response.json();
+        mostrarAlerta(errorData.message);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      mostrarAlerta('Error al intentar exportar los datos');
+    } finally {
+      const modal = bootstrap.Modal.getInstance(document.getElementById('exportModal'));
+      modal.hide();
+    }
+  }
+
+   document.getElementById('nombreBusqueda').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('#tablaUsuarios tr');
+    let hasVisibleRows = false;
+    
+    rows.forEach(row => {
+      if (row.querySelectorAll('td').length >= 4) {
+        const name = row.cells[0].textContent.toLowerCase();
+        const curp = row.cells[1].textContent.toLowerCase();
+        const folio = row.cells[2].textContent.toLowerCase();
+        
+        const searchParts = searchTerm.split(/\s+/);
+        
+        const nameMatches = searchParts.every(part => name.includes(part));
+        const curpMatches = curp.includes(searchTerm);
+        const folioMatches = folio.includes(searchTerm);
+        
+        const isVisible = searchTerm === '' || nameMatches || curpMatches || folioMatches;
+        
+        row.style.display = isVisible ? '' : 'none';
+        if (isVisible) hasVisibleRows = true;
+      }
+    });
+    
+    const noResultsRow = document.querySelector('#tablaUsuarios tr td[colspan]');
+    if (noResultsRow) {
+      noResultsRow.parentNode.style.display = hasVisibleRows || searchTerm === '' ? 'none' : '';
+    }
+  });
+
+  document.querySelectorAll('tbody tr').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (!e.target.closest('button') && !e.target.closest('a')) {
+        const link = row.querySelector('a[href^="/consulta"]');
+        if (link) {
+          window.location.href = link.href;
+        }
+      }
+    });
+  });
+</script>
+</body>
+</html>
