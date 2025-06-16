@@ -509,7 +509,7 @@ const informacionController = {
       const conexion = require('../db');
       const [registros] = await conexion.promise().query(
         `SELECT nombre, apellido_paterno, apellido_materno, folio, curp, 
-        fecha_expedicion, fecha_expiracion, telefono, correo_electronico, direccion
+        fecha_expedicion, fecha_expiracion, fotografia
         FROM informacion 
         WHERE DATE(fecha_expedicion) = ? 
         ORDER BY fecha_expedicion DESC`,
@@ -529,17 +529,16 @@ const informacionController = {
         { header: 'Apellido Materno', key: 'apellido_materno', width: 20 },
         { header: 'Folio', key: 'folio', width: 15 },
         { header: 'CURP', key: 'curp', width: 20 },
-        { header: 'Teléfono', key: 'telefono', width: 15 },
-        { header: 'Correo', key: 'correo_electronico', width: 25 },
-        { header: 'Dirección', key: 'direccion', width: 30 },
         { header: 'Fecha Expedición', key: 'fecha_expedicion', width: 15 },
-        { header: 'Fecha Expiración', key: 'fecha_expiracion', width: 15 }
+        { header: 'Fecha Expiración', key: 'fecha_expiracion', width: 15 },
+        { header: 'Fotografía', key: 'fotografia', width: 20 }
       ];
   
       const datosParaExcel = registros.map(registro => ({
         ...registro,
         fecha_expedicion: registro.fecha_expedicion?.toISOString().split('T')[0] || '',
-        fecha_expiracion: registro.fecha_expiracion?.toISOString().split('T')[0] || ''
+        fecha_expiracion: registro.fecha_expiracion?.toISOString().split('T')[0] || '',
+        fotografia: registro.fotografia || 'Sin foto'
       }));
     
       worksheet.addRows(datosParaExcel);
@@ -590,7 +589,7 @@ const informacionController = {
       const conexion = require('../db');
       const [registros] = await conexion.promise().query(
         `SELECT nombre, apellido_paterno, apellido_materno, folio, curp, 
-        fecha_expedicion, fecha_expiracion, telefono, correo_electronico, direccion
+        fecha_expedicion, fecha_expiracion, fotografia
         FROM informacion 
         WHERE DATE(fecha_expedicion) BETWEEN ? AND ?
         ORDER BY fecha_expedicion DESC`,
@@ -610,17 +609,16 @@ const informacionController = {
         { header: 'Apellido Materno', key: 'apellido_materno', width: 20 },
         { header: 'Folio', key: 'folio', width: 15 },
         { header: 'CURP', key: 'curp', width: 20 },
-        { header: 'Teléfono', key: 'telefono', width: 15 },
-        { header: 'Correo', key: 'correo_electronico', width: 25 },
-        { header: 'Dirección', key: 'direccion', width: 30 },
         { header: 'Fecha Expedición', key: 'fecha_expedicion', width: 15 },
-        { header: 'Fecha Expiración', key: 'fecha_expiracion', width: 15 }
+        { header: 'Fecha Expiración', key: 'fecha_expiracion', width: 15 },
+        { header: 'Fotografía', key: 'fotografia', width: 20 }
       ];
 
       const datosParaExcel = registros.map(registro => ({
         ...registro,
         fecha_expedicion: registro.fecha_expedicion?.toISOString().split('T')[0] || '',
-        fecha_expiracion: registro.fecha_expiracion?.toISOString().split('T')[0] || ''
+        fecha_expiracion: registro.fecha_expiracion?.toISOString().split('T')[0] || '',
+        fotografia: registro.fotografia || 'Sin foto'
       }));
   
       worksheet.addRows(datosParaExcel);
