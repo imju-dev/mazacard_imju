@@ -43,7 +43,7 @@ router.get('/api/ultimo-folio', informacionController.obtenerUltimoFolio);
 router.get('/panelAdmin', estaAutenticado, soloAdmin, usuariosController.panelAdminView);
 router.get('/gestionUsuarios', estaAutenticado, soloAdmin, usuariosController.gestionUsuariosView);
 router.get('/logAdmin', estaAutenticado, soloAdmin, usuariosController.logAdminView);
-router.post('/eliminar/:id', soloEditorOAdmin, soloAdmin, informacionController.eliminar);
+router.post('/eliminar/:id', soloEditorOAdmin, soloEditorOAdmin, informacionController.eliminar);
 router.get('/agregarUsuario', estaAutenticado, soloAdmin, usuariosController.agregarUsuarioView);
 router.post('/registrarUsuario', estaAutenticado, soloAdmin, upload.single('imagen'), usuariosController.registrarUsuarioAdmin);
 router.post('/admin/usuarios/:id/rol', soloAdmin, usuariosController.actualizarRol);
