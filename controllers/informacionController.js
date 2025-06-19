@@ -3,6 +3,7 @@ const logModel = require('../models/logModel');
 const fs = require('fs');
 const path = require('path');
 const ExcelJS = require('exceljs');
+const archiver = require('archiver');
 
 const informacionController = {
   obtenerTodo: (req, res) => {
@@ -421,22 +422,25 @@ const informacionController = {
   exportarExcel: async (req, res) => {
     try {
       const { id } = req.params;
-    
       const conexion = require('../db');
+
       const [persona] = await conexion.promise().query(
         `SELECT nombre, apellido_paterno, apellido_materno, folio, curp, 
         fecha_expedicion, fecha_expiracion, fotografia 
         FROM informacion WHERE id = ?`, 
         [id]
       );
-    
+
       if (!persona.length) {
         return res.status(404).json({ success: false, message: 'Persona no encontrada' });
       }
-    
+
+      const datosPersona = persona[0];
+
+      // Crear archivo Excel en memoria
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Datos Persona');
-    
+
       worksheet.columns = [
         { header: 'Nombre', key: 'nombre', width: 20 },
         { header: 'Apellido Paterno', key: 'apellido_paterno', width: 20 },
@@ -447,9 +451,7 @@ const informacionController = {
         { header: 'Fecha expiración', key: 'fecha_expiracion', width: 15 },
         { header: 'Fotografía', key: 'fotografia', width: 20 }
       ];
-    
-      const datosPersona = persona[0];
-      
+
       const datosParaExcel = {
         nombre: datosPersona.nombre,
         apellido_paterno: datosPersona.apellido_paterno,
@@ -458,54 +460,61 @@ const informacionController = {
         curp: datosPersona.curp,
         fecha_expedicion: datosPersona.fecha_expedicion?.toISOString().split('T')[0] || '',
         fecha_expiracion: datosPersona.fecha_expiracion?.toISOString().split('T')[0] || '',
-        fotografia: datosPersona.fotografia || 'Sin foto' 
+        fotografia: datosPersona.fotografia || 'Sin foto'
       };
-    
+
       worksheet.addRow(datosParaExcel);
-    
       worksheet.getRow(1).font = { bold: true };
-      
       worksheet.columns.forEach(column => {
         column.alignment = { vertical: 'middle', horizontal: 'left' };
       });
-    
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="datos_${datosPersona.nombre}_${datosPersona.folio}.xlsx"`
-      );
-  
-      await workbook.xlsx.write(res);
-      res.end();
-  
+
+      const excelBuffer = await workbook.xlsx.writeBuffer();
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="datos_${datosPersona.nombre}_${datosPersona.folio}.zip"`);
+
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      archive.pipe(res);
+
+      // Agregar Excel al zip
+      archive.append(excelBuffer, { name: `datos_${datosPersona.nombre}_${datosPersona.folio}.xlsx` });
+
+      if (datosPersona.fotografia) {
+        const rutaImagen = path.join(__dirname, '..', 'public', 'uploads', datosPersona.fotografia);
+        if (fs.existsSync(rutaImagen)) {
+          archive.file(rutaImagen, { name: `${datosPersona.folio}${path.extname(rutaImagen)}` });
+        }
+      }
+
+      await archive.finalize();
+
+      // Registrar log
       const usuario = req.session.usuario;
       const nombreCompleto = `${datosPersona.nombre} ${datosPersona.apellido_paterno} ${datosPersona.apellido_materno}`.trim();
-      const descripcion = `${usuario.username} (${usuario.rol}) exportó a Excel los datos de ${nombreCompleto}`;
-    
+      const descripcion = `${usuario.username} (${usuario.rol}) exportó a ZIP los datos de ${nombreCompleto}`;
       const logModel = require('../models/logModel');
-      logModel.registrar(usuario.id, 'exportar_excel', descripcion, (err) => {
+      logModel.registrar(usuario.id, 'exportar_zip', descripcion, (err) => {
         if (err) console.error('Error al registrar log:', err);
       });
-    
+
     } catch (error) {
-      console.error('Error al exportar a Excel:', error);
-      res.status(500).json({ success: false, message: 'Error al generar el reporte' });
+      console.error('Error al exportar a ZIP:', error);
+      res.status(500).json({ success: false, message: 'Error al generar el archivo ZIP' });
     }
   },
 
-  exportarExcelPorFecha: async (req, res) => {
+
+ exportarExcelPorFecha: async (req, res) => {
     try {
       const { fecha } = req.query;
-    
+
       if (!fecha) {
         return res.status(400).json({ success: false, message: 'Fecha requerida' });
       }
 
       const fechaFormateada = new Date(fecha).toISOString().split('T')[0];
-  
+
       const conexion = require('../db');
       const [registros] = await conexion.promise().query(
         `SELECT nombre, apellido_paterno, apellido_materno, folio, curp, 
@@ -515,14 +524,14 @@ const informacionController = {
         ORDER BY fecha_expedicion DESC`,
         [fechaFormateada]
       );
-    
+
       if (!registros.length) {
         return res.status(404).json({ success: false, message: 'No hay registros para la fecha seleccionada' });
       }
-    
+
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Registros');
-    
+
       worksheet.columns = [
         { header: 'Nombre', key: 'nombre', width: 20 },
         { header: 'Apellido Paterno', key: 'apellido_paterno', width: 20 },
@@ -533,51 +542,58 @@ const informacionController = {
         { header: 'Fecha Expiración', key: 'fecha_expiracion', width: 15 },
         { header: 'Fotografía', key: 'fotografia', width: 20 }
       ];
-  
+
       const datosParaExcel = registros.map(registro => ({
         ...registro,
         fecha_expedicion: registro.fecha_expedicion?.toISOString().split('T')[0] || '',
         fecha_expiracion: registro.fecha_expiracion?.toISOString().split('T')[0] || '',
         fotografia: registro.fotografia || 'Sin foto'
       }));
-    
+
       worksheet.addRows(datosParaExcel);
-  
       worksheet.getRow(1).font = { bold: true };
-      worksheet.columns.forEach(column => {
-        column.alignment = { vertical: 'middle', horizontal: 'left' };
+      worksheet.columns.forEach(col => {
+        col.alignment = { vertical: 'middle', horizontal: 'left' };
       });
-    
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="registros_${fechaFormateada}.xlsx"`
-      );
-    
-      await workbook.xlsx.write(res);
-      res.end();
-    
+
+      const excelBuffer = await workbook.xlsx.writeBuffer();
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="registros_${fechaFormateada}.zip"`);
+
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      archive.pipe(res);
+
+      archive.append(excelBuffer, { name: `registros_${fechaFormateada}.xlsx` });
+
+      for (const registro of registros) {
+        if (registro.fotografia) {
+          const ruta = path.join(__dirname, '..', 'public', 'uploads', registro.fotografia);
+          if (fs.existsSync(ruta)) {
+            archive.file(ruta, { name: `imagenes/${registro.folio}${path.extname(ruta)}` });
+          }
+        }
+      }
+
+      await archive.finalize();
+
       const usuario = req.session.usuario;
       const descripcion = `${usuario.username} (${usuario.rol}) exportó registros del ${fechaFormateada}`;
-    
       const logModel = require('../models/logModel');
-      logModel.registrar(usuario.id, 'exportar_excel', descripcion, (err) => {
+      logModel.registrar(usuario.id, 'exportar_zip', descripcion, err => {
         if (err) console.error('Error al registrar log:', err);
       });
-    
+
     } catch (error) {
-      console.error('Error al exportar a Excel:', error);
-      res.status(500).json({ success: false, message: 'Error al generar el reporte' });
+      console.error('Error al exportar ZIP por fecha:', error);
+      res.status(500).json({ success: false, message: 'Error al generar el archivo ZIP' });
     }
   },
 
   exportarExcelPorRangoFechas: async (req, res) => {
     try {
       const { startDate, endDate } = req.query;
-  
+
       if (!startDate || !endDate) {
         return res.status(400).json({ success: false, message: 'Fechas requeridas' });
       }
@@ -595,14 +611,14 @@ const informacionController = {
         ORDER BY fecha_expedicion DESC`,
         [startDate, endDate]
       );
-  
+
       if (!registros.length) {
         return res.status(404).json({ success: false, message: 'No hay registros para el rango de fechas seleccionado' });
       }
-  
+
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Registros');
-  
+
       worksheet.columns = [
         { header: 'Nombre', key: 'nombre', width: 20 },
         { header: 'Apellido Paterno', key: 'apellido_paterno', width: 20 },
@@ -620,37 +636,44 @@ const informacionController = {
         fecha_expiracion: registro.fecha_expiracion?.toISOString().split('T')[0] || '',
         fotografia: registro.fotografia || 'Sin foto'
       }));
-  
-      worksheet.addRows(datosParaExcel);
 
+      worksheet.addRows(datosParaExcel);
       worksheet.getRow(1).font = { bold: true };
-      worksheet.columns.forEach(column => {
-        column.alignment = { vertical: 'middle', horizontal: 'left' };
+      worksheet.columns.forEach(col => {
+        col.alignment = { vertical: 'middle', horizontal: 'left' };
       });
-  
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="registros_${startDate}_a_${endDate}.xlsx"`
-      );
-  
-      await workbook.xlsx.write(res);
-      res.end();
-  
+
+      const excelBuffer = await workbook.xlsx.writeBuffer();
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="registros_${startDate}_a_${endDate}.zip"`);
+
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      archive.pipe(res);
+
+      archive.append(excelBuffer, { name: `registros_${startDate}_a_${endDate}.xlsx` });
+
+      for (const registro of registros) {
+        if (registro.fotografia) {
+          const ruta = path.join(__dirname, '..', 'public', 'uploads', registro.fotografia);
+          if (fs.existsSync(ruta)) {
+            archive.file(ruta, { name: `imagenes/${registro.folio}${path.extname(ruta)}` });
+          }
+        }
+      }
+
+      await archive.finalize();
+
       const usuario = req.session.usuario;
       const descripcion = `${usuario.username} (${usuario.rol}) exportó registros del ${startDate} al ${endDate}`;
-  
       const logModel = require('../models/logModel');
-      logModel.registrar(usuario.id, 'exportar_excel', descripcion, (err) => {
+      logModel.registrar(usuario.id, 'exportar_zip', descripcion, err => {
         if (err) console.error('Error al registrar log:', err);
       });
-  
+
     } catch (error) {
-      console.error('Error al exportar a Excel:', error);
-      res.status(500).json({ success: false, message: 'Error al generar el reporte' });
+      console.error('Error al exportar ZIP por rango de fechas:', error);
+      res.status(500).json({ success: false, message: 'Error al generar el archivo ZIP' });
     }
   },
 

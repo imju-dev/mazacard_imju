@@ -294,7 +294,7 @@
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `registros_${fecha}.xlsx`;
+        a.download = `registros_${fecha}.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -332,7 +332,7 @@
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `registros_${startDate}_a_${endDate}.xlsx`;
+        a.download = `registros_${startDate}_a_${endDate}.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
