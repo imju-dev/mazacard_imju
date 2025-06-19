@@ -503,7 +503,8 @@ const informacionController = {
       if (datosPersona.fotografia) {
         const rutaImagen = path.join(__dirname, '..', 'public', 'uploads', datosPersona.fotografia);
         if (fs.existsSync(rutaImagen)) {
-          archive.file(rutaImagen, { name: `${datosPersona.folio}${path.extname(rutaImagen)}` });
+          const streamImagen = fs.createReadStream(rutaImagen);
+          archive.append(streamImagen, { name: `${datosPersona.folio}${path.extname(rutaImagen)}` });
         } else {
           console.warn('Imagen no encontrada:', rutaImagen);
         }
