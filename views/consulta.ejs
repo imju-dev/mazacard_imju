@@ -236,21 +236,26 @@
     const personaId = document.querySelector('input[name="id"]').value;
     const personaFolio = document.querySelector('input[name="folio"]').value;
     const personaNombre = document.querySelector('input[name="nombre"]').value;
-    
+
     if (!personaId) {
       mostrarAlerta('No hay datos para exportar');
       return;
     }
-    
+
     try {
       const response = await fetch(`/api/exportar-excel/${personaId}`);
 
       if (response.ok) {
+        const contentDisposition = response.headers.get('Content-Disposition') || '';
+        const esZip = contentDisposition.includes('.zip');
+
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `datos_${personaNombre}_${personaFolio}.xlsx`;
+        a.download = esZip
+          ? `datos_${personaNombre}_${personaFolio}.zip`
+          : `datos_${personaNombre}_${personaFolio}.xlsx`; // fallback si no fue zip
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

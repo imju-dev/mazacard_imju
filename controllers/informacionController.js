@@ -423,7 +423,6 @@ const informacionController = {
     try {
       const { id } = req.params;
       const conexion = require('../db');
-
       const [persona] = await conexion.promise().query(
         `SELECT nombre, apellido_paterno, apellido_materno, folio, curp, 
         fecha_expedicion, fecha_expiracion, fotografia 
@@ -437,7 +436,6 @@ const informacionController = {
 
       const datosPersona = persona[0];
 
-      // Crear Excel en memoria
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Datos Persona');
 
@@ -468,50 +466,40 @@ const informacionController = {
         col.alignment = { vertical: 'middle', horizontal: 'left' };
       });
 
-      // Crear buffer del Excel
       const excelBuffer = await workbook.xlsx.writeBuffer();
 
-      // Preparar headers para ZIP
       res.setHeader('Content-Type', 'application/zip');
       res.setHeader('Content-Disposition', `attachment; filename="datos_${datosPersona.nombre}_${datosPersona.folio}.zip"`);
 
-      // Crear ZIP
       const archive = archiver('zip', { zlib: { level: 9 } });
       archive.pipe(res);
 
-      // Capturar errores de archiver
-      archive.on('error', (err) => {
-        console.error('Error generando ZIP:', err);
-        res.status(500).end();
-      });
-
-      // Registrar log solo al terminar correctamente
-      archive.on('end', () => {
-        const usuario = req.session.usuario;
-        const nombreCompleto = `${datosPersona.nombre} ${datosPersona.apellido_paterno} ${datosPersona.apellido_materno}`.trim();
-        const descripcion = `${usuario.username} (${usuario.rol}) exportó a ZIP los datos de ${nombreCompleto}`;
-        const logModel = require('../models/logModel');
-        logModel.registrar(usuario.id, 'exportar_zip', descripcion, (err) => {
-          if (err) console.error('Error al registrar log:', err);
-        });
-      });
-
-      // Añadir Excel al ZIP
       archive.append(excelBuffer, { name: `datos_${datosPersona.nombre}_${datosPersona.folio}.xlsx` });
 
-      // Añadir imagen si existe
+      const tareas = [];
+
       if (datosPersona.fotografia) {
         const rutaImagen = path.join(__dirname, '..', 'public', 'uploads', datosPersona.fotografia);
         if (fs.existsSync(rutaImagen)) {
           const streamImagen = fs.createReadStream(rutaImagen);
           archive.append(streamImagen, { name: `${datosPersona.folio}${path.extname(rutaImagen)}` });
+
+          tareas.push(new Promise(resolve => streamImagen.on('end', resolve)));
         } else {
           console.warn('Imagen no encontrada:', rutaImagen);
         }
       }
 
-      // Finalizar ZIP
+      await Promise.all(tareas);
       await archive.finalize();
+
+      const usuario = req.session.usuario;
+      const nombreCompleto = `${datosPersona.nombre} ${datosPersona.apellido_paterno} ${datosPersona.apellido_materno}`.trim();
+      const descripcion = `${usuario.username} (${usuario.rol}) exportó a ZIP los datos de ${nombreCompleto}`;
+      const logModel = require('../models/logModel');
+      logModel.registrar(usuario.id, 'exportar_zip', descripcion, (err) => {
+        if (err) console.error('Error al registrar log:', err);
+      });
 
     } catch (error) {
       console.error('Error al exportar a ZIP:', error);
