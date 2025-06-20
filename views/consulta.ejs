@@ -141,7 +141,7 @@
       </div>
       <div class="col-md-6 col-12 mb-2">
         <label for="fotografia" class="form-label">Fotografía:</label>
-        <input type="file" class="form-control" id="fotografia" name="fotografia" accept="image/*">
+        <input type="file" class="form-control" id="fotografia" name="fotografia" accept="image/*" <%= persona?.id ? '' : 'required' %>>
       </div>
     </div>
     
